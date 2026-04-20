@@ -1,76 +1,104 @@
 "use client"
 
-import { useRef } from "react"
-import { useFloorPlan, FloorRoom } from "@/store/useFloorPlan"
-import { snapRoom, resolveCollision } from "@/lib/floorMath"
+import { useMemo, useRef, useState } from "react"
 import RoomHeatmapOverlay from "./RoomHeatmapOverlay"
+import { analyzeSignalDataset } from "@/lib/signalAnalysis"
+import { resolveCollision, snapRoom } from "@/lib/floorMath"
+import { useDataset } from "@/store/useDataset"
+import { FloorRoom, useFloorPlan } from "@/store/useFloorPlan"
 
 type Props = {
   room: FloorRoom
 }
 
+type RoomDraft = {
+  x: number
+  y: number
+  widthM: number
+  heightM: number
+}
+
 export default function FloorRoomRect({ room }: Props) {
-  const { floors, currentFloorId, updateRoom, scale, selectRoom, toggleRoomSelection, selectedRoomId, selectedRoomIds, snapUnit } = useFloorPlan((s) => ({
+  const {
+    floors,
+    currentFloorId,
+    updateRoom,
+    scale,
+    offsetX,
+    offsetY,
+    toggleRoomSelection,
+    selectedRoomIds,
+    snapUnit,
+  } = useFloorPlan((s) => ({
     floors: s.floors,
     currentFloorId: s.currentFloorId,
     updateRoom: s.updateRoom,
     scale: s.scale,
-    selectRoom: s.selectRoom,
+    offsetX: s.offsetX,
+    offsetY: s.offsetY,
     toggleRoomSelection: s.toggleRoomSelection,
-    selectedRoomId: s.selectedRoomId,
     selectedRoomIds: s.selectedRoomIds,
     snapUnit: s.snapUnit,
   }))
-  const currentFloor = floors.find((f) => f.id === currentFloorId)
-  const rooms = currentFloor?.rooms ?? []
+  const signal = useDataset((s) => s.signal)
+  const currentFloor = floors.find((floor) => floor.id === currentFloorId)
+  const rooms = useMemo(() => currentFloor?.rooms ?? [], [currentFloor])
   const ref = useRef<HTMLDivElement>(null)
+  const [draft, setDraft] = useState<RoomDraft | null>(null)
+  const draftRef = useRef<RoomDraft | null>(null)
 
-  // Calculate effective grid size based on snapUnit
-  const effectiveGridSize = snapUnit === "meters" ? 1 : 0.3048  // 1m or 1 foot
-
-  const others = rooms.filter((r) => r.id !== room.id)
-  // Check if this room is selected (primary or in multi-select list)
+  const effectiveGridSize = snapUnit === "meters" ? 1 : 0.3048
+  const others = useMemo(() => rooms.filter((candidate) => candidate.id !== room.id), [rooms, room.id])
   const isSelected = selectedRoomIds.includes(room.id)
+  const analysis = useMemo(() => analyzeSignalDataset(room.dataset ?? null, signal), [room.dataset, signal])
+
+  const draftRoom = draft
+    ? { ...room, x: draft.x, y: draft.y, widthM: draft.widthM, heightM: draft.heightM }
+    : room
 
   const snapToGrid = (value: number, gridSize: number) => {
     if (gridSize <= 0) return value
-    // add small epsilon before rounding to avoid floating-point gaps
-    const eps = 1e-6
-    return Math.round((value + eps) / gridSize) * gridSize
+    return Math.round((value + 1e-6) / gridSize) * gridSize
   }
 
-  // -------- MOVE ROOM --------
-  const startDrag = (e: React.MouseEvent) => {
-    e.stopPropagation()  // Prevent panning while dragging room
-    // Don't change selection here - let onClick handle it
-    // This preserves multi-select when dragging
+  const startDrag = (event: React.MouseEvent) => {
+    event.stopPropagation()
 
-    const startX = e.clientX
-    const startY = e.clientY
+    const startX = event.clientX
+    const startY = event.clientY
     const startPos = { x: room.x, y: room.y }
 
-    const move = (ev: MouseEvent) => {
-      let dx = (ev.clientX - startX) / scale
-      let dy = (ev.clientY - startY) / scale
+    const move = (nextEvent: MouseEvent) => {
+      let nextX = startPos.x + (nextEvent.clientX - startX) / scale
+      let nextY = startPos.y + (nextEvent.clientY - startY) / scale
 
-      let newX = startPos.x + dx
-      let newY = startPos.y + dy
-
-      // snap to grid only (no room snapping - too restrictive)
       if (effectiveGridSize > 0) {
-        newX = snapToGrid(newX, effectiveGridSize)
-        newY = snapToGrid(newY, effectiveGridSize)
+        nextX = snapToGrid(nextX, effectiveGridSize)
+        nextY = snapToGrid(nextY, effectiveGridSize)
       }
 
-      const newRoom = { ...room, x: newX, y: newY }
+      const snapped = snapRoom({ ...room, x: nextX, y: nextY }, others, effectiveGridSize / 2)
+      const candidate = { ...room, x: snapped.x, y: snapped.y }
 
-      // Check collision - allow move if no collision
-      if (resolveCollision(newRoom, others)) {
-        updateRoom(room.id, { x: newRoom.x, y: newRoom.y })
+      if (resolveCollision(candidate, others)) {
+        const nextDraft = {
+          x: candidate.x,
+          y: candidate.y,
+          widthM: room.widthM,
+          heightM: room.heightM,
+        }
+        draftRef.current = nextDraft
+        setDraft(nextDraft)
       }
     }
 
     const stop = () => {
+      const finalDraft = draftRef.current
+      if (finalDraft) {
+        updateRoom(room.id, { x: finalDraft.x, y: finalDraft.y })
+      }
+      draftRef.current = null
+      setDraft(null)
       window.removeEventListener("mousemove", move)
       window.removeEventListener("mouseup", stop)
     }
@@ -79,49 +107,47 @@ export default function FloorRoomRect({ room }: Props) {
     window.addEventListener("mouseup", stop)
   }
 
-  // -------- RESIZE ROOM --------
-  const startResize = (e: React.MouseEvent) => {
-    // prevent resize if room has a linked dataset
+  const startResize = (event: React.MouseEvent) => {
     if (room.dataset) {
-      e.stopPropagation()
+      event.stopPropagation()
       return
     }
 
-    e.stopPropagation()
+    event.stopPropagation()
+    const startX = event.clientX
+    const startY = event.clientY
+    const startWidth = room.widthM
+    const startHeight = room.heightM
 
-    const startX = e.clientX
-    const startY = e.clientY
-    const startW = room.widthM
-    const startH = room.heightM
+    const move = (nextEvent: MouseEvent) => {
+      let nextWidth = Math.max(0.2, startWidth + (nextEvent.clientX - startX) / scale)
+      let nextHeight = Math.max(0.2, startHeight + (nextEvent.clientY - startY) / scale)
 
-    const move = (ev: MouseEvent) => {
-      let dw = (ev.clientX - startX) / scale
-      let dh = (ev.clientY - startY) / scale
-
-      let newW = Math.max(0.2, startW + dw)
-      let newH = Math.max(0.2, startH + dh)
-
-      // snap to grid
       if (effectiveGridSize > 0) {
-        newW = snapToGrid(newW, effectiveGridSize)
-        newH = snapToGrid(newH, effectiveGridSize)
+        nextWidth = snapToGrid(nextWidth, effectiveGridSize)
+        nextHeight = snapToGrid(nextHeight, effectiveGridSize)
       }
 
-      const newRoom = {
-        ...room,
-        widthM: newW,
-        heightM: newH,
-      }
-
-      if (resolveCollision(newRoom, others)) {
-        updateRoom(room.id, {
-          widthM: newRoom.widthM,
-          heightM: newRoom.heightM,
-        })
+      const candidate = { ...room, widthM: nextWidth, heightM: nextHeight }
+      if (resolveCollision(candidate, others)) {
+        const nextDraft = {
+          x: room.x,
+          y: room.y,
+          widthM: candidate.widthM,
+          heightM: candidate.heightM,
+        }
+        draftRef.current = nextDraft
+        setDraft(nextDraft)
       }
     }
 
     const stop = () => {
+      const finalDraft = draftRef.current
+      if (finalDraft) {
+        updateRoom(room.id, { widthM: finalDraft.widthM, heightM: finalDraft.heightM })
+      }
+      draftRef.current = null
+      setDraft(null)
       window.removeEventListener("mousemove", move)
       window.removeEventListener("mouseup", stop)
     }
@@ -134,164 +160,144 @@ export default function FloorRoomRect({ room }: Props) {
     <div
       ref={ref}
       onMouseDown={startDrag}
-      onClick={(e: React.MouseEvent<HTMLDivElement>) => {
-        e.stopPropagation()
-        // Ctrl+Click for multi-select, regular click for single select
-        toggleRoomSelection(room.id, e.ctrlKey || e.metaKey)
+      onClick={(event) => {
+        event.stopPropagation()
+        toggleRoomSelection(room.id, event.ctrlKey || event.metaKey)
       }}
-      className={`absolute border cursor-move flex flex-col
-      ${isSelected ? "border-green-400 bg-green-400/20" : "border-blue-400 bg-blue-400/20"}`}
+      className={`absolute flex flex-col overflow-hidden rounded-xl border shadow-[0_18px_40px_rgba(0,0,0,0.28)] ${
+        isSelected ? "border-emerald-300 bg-emerald-400/20" : "border-sky-300/80 bg-sky-500/14"
+      }`}
       style={{
-        left: room.x * scale,
-        top: room.y * scale,
-        width: room.widthM * scale,
-        height: room.heightM * scale,
+        left: (draftRoom.x + offsetX) * scale,
+        top: (draftRoom.y + offsetY) * scale,
+        width: draftRoom.widthM * scale,
+        height: draftRoom.heightM * scale,
       }}
     >
-      {/* Show ticks if enabled (default true) */}
       {room.showTicks !== false && (
         <>
-      {/* Top edge ticks (horizontal meter/foot marks with SVG) */}
-      <svg
-        className="absolute -top-6 left-0 pointer-events-none"
-        width={room.widthM * scale}
-        height="20"
-        style={{ overflow: "visible" }}
-      >
-        {Array.from({ length: Math.ceil(room.widthM) + 1 }).map((_, meterIdx) => {
-          // Draw ticks for each meter
-          const meterPos = meterIdx * 1  // meters
-          if (meterPos > room.widthM) return null
-          const xPos = (meterPos / room.widthM) * (room.widthM * scale)
-          
-          return (
-            <g key={`meter-${meterIdx}`}>
-              {/* Meter mark (bright) */}
-              <line
-                x1={xPos}
-                y1="2"
-                x2={xPos}
-                y2="16"
-                stroke="rgba(255,255,255,0.8)"
-                strokeWidth="2"
-              />
-              <text
-                x={xPos}
-                y="1"
-                fontSize="10"
-                fill="rgba(255,255,255,0.7)"
-                textAnchor="middle"
-                dominantBaseline="text-after-edge"
-              >
-                {meterIdx}m
-              </text>
-              
-              {/* Minor ticks for feet (0.3048m) between meters */}
-              {meterIdx < Math.ceil(room.widthM) && Array.from({ length: 3 }).map((_, footIdx) => {
-                const footOffset = (footIdx + 1) * 0.3048  // 1, 2, 3 feet
-                const footPos = meterPos + footOffset
-                if (footPos > room.widthM) return null
-                const footXPos = (footPos / room.widthM) * (room.widthM * scale)
-                return (
-                  <line
-                    key={`foot-h-${meterIdx}-${footIdx}`}
-                    x1={footXPos}
-                    y1="8"
-                    x2={footXPos}
-                    y2="16"
-                    stroke="rgba(255,255,255,0.4)"
-                    strokeWidth="1"
-                  />
-                )
-              })}
-            </g>
-          )
-        })}
-      </svg>
+          <svg
+            className="pointer-events-none absolute -top-6 left-0"
+            width={draftRoom.widthM * scale}
+            height="20"
+            style={{ overflow: "visible" }}
+          >
+            {Array.from({ length: Math.ceil(draftRoom.widthM) + 1 }).map((_, meterIdx) => {
+              const meterPos = meterIdx
+              if (meterPos > draftRoom.widthM) return null
+              const xPos = (meterPos / draftRoom.widthM) * (draftRoom.widthM * scale)
 
-      {/* Left edge ticks (vertical meter/foot marks with SVG) */}
-      <svg
-        className="absolute -left-12 top-0 pointer-events-none"
-        width="40"
-        height={room.heightM * scale}
-        style={{ overflow: "visible" }}
-      >
-        {Array.from({ length: Math.ceil(room.heightM) + 1 }).map((_, meterIdx) => {
-          // Draw ticks for each meter
-          const meterPos = meterIdx * 1  // meters
-          if (meterPos > room.heightM) return null
-          const yPos = (meterPos / room.heightM) * (room.heightM * scale)
-          
-          return (
-            <g key={`meter-v-${meterIdx}`}>
-              {/* Meter mark (bright) */}
-              <line
-                x1="28"
-                y1={yPos}
-                x2="40"
-                y2={yPos}
-                stroke="rgba(255,255,255,0.8)"
-                strokeWidth="2"
-              />
-              <text
-                x="24"
-                y={yPos}
-                fontSize="10"
-                fill="rgba(255,255,255,0.7)"
-                textAnchor="end"
-                dominantBaseline="central"
-              >
-                {meterIdx}m
-              </text>
-              
-              {/* Minor ticks for feet (0.3048m) between meters */}
-              {meterIdx < Math.ceil(room.heightM) && Array.from({ length: 3 }).map((_, footIdx) => {
-                const footOffset = (footIdx + 1) * 0.3048  // 1, 2, 3 feet
-                const footPos = meterPos + footOffset
-                if (footPos > room.heightM) return null
-                const footYPos = (footPos / room.heightM) * (room.heightM * scale)
-                return (
-                  <line
-                    key={`foot-v-${meterIdx}-${footIdx}`}
-                    x1="34"
-                    y1={footYPos}
-                    x2="40"
-                    y2={footYPos}
-                    stroke="rgba(255,255,255,0.4)"
-                    strokeWidth="1"
-                  />
-                )
-              })}
-            </g>
-          )
-        })}
-      </svg>
+              return (
+                <g key={`meter-${meterIdx}`}>
+                  <line x1={xPos} y1="2" x2={xPos} y2="16" stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
+                  <text
+                    x={xPos}
+                    y="1"
+                    fontSize="10"
+                    fill="rgba(255,255,255,0.7)"
+                    textAnchor="middle"
+                    dominantBaseline="text-after-edge"
+                  >
+                    {meterIdx}m
+                  </text>
+                  {meterIdx < Math.ceil(draftRoom.widthM) &&
+                    Array.from({ length: 3 }).map((_, footIdx) => {
+                      const footPos = meterPos + (footIdx + 1) * 0.3048
+                      if (footPos > draftRoom.widthM) return null
+                      const footXPos = (footPos / draftRoom.widthM) * (draftRoom.widthM * scale)
+                      return (
+                        <line
+                          key={`foot-h-${meterIdx}-${footIdx}`}
+                          x1={footXPos}
+                          y1="8"
+                          x2={footXPos}
+                          y2="16"
+                          stroke="rgba(255,255,255,0.38)"
+                          strokeWidth="1"
+                        />
+                      )
+                    })}
+                </g>
+              )
+            })}
+          </svg>
+
+          <svg
+            className="pointer-events-none absolute -left-12 top-0"
+            width="40"
+            height={draftRoom.heightM * scale}
+            style={{ overflow: "visible" }}
+          >
+            {Array.from({ length: Math.ceil(draftRoom.heightM) + 1 }).map((_, meterIdx) => {
+              const meterPos = meterIdx
+              if (meterPos > draftRoom.heightM) return null
+              const yPos = (meterPos / draftRoom.heightM) * (draftRoom.heightM * scale)
+
+              return (
+                <g key={`meter-v-${meterIdx}`}>
+                  <line x1="28" y1={yPos} x2="40" y2={yPos} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
+                  <text
+                    x="24"
+                    y={yPos}
+                    fontSize="10"
+                    fill="rgba(255,255,255,0.7)"
+                    textAnchor="end"
+                    dominantBaseline="central"
+                  >
+                    {meterIdx}m
+                  </text>
+                  {meterIdx < Math.ceil(draftRoom.heightM) &&
+                    Array.from({ length: 3 }).map((_, footIdx) => {
+                      const footPos = meterPos + (footIdx + 1) * 0.3048
+                      if (footPos > draftRoom.heightM) return null
+                      const footYPos = (footPos / draftRoom.heightM) * (draftRoom.heightM * scale)
+                      return (
+                        <line
+                          key={`foot-v-${meterIdx}-${footIdx}`}
+                          x1="34"
+                          y1={footYPos}
+                          x2="40"
+                          y2={footYPos}
+                          stroke="rgba(255,255,255,0.38)"
+                          strokeWidth="1"
+                        />
+                      )
+                    })}
+                </g>
+              )
+            })}
+          </svg>
         </>
       )}
 
-      {/* Heatmap overlay */}
       {room.dataset && (
         <RoomHeatmapOverlay
           dataset={room.dataset}
-          widthM={room.widthM}
-          heightM={room.heightM}
+          widthM={draftRoom.widthM}
+          heightM={draftRoom.heightM}
           scale={scale}
         />
       )}
 
-      {/* ROOM LABEL - show both meters and feet */}
-      <div className="absolute top-1 left-1 text-xs bg-black/70 px-1 pointer-events-none">
-        <div>{room.name}</div>
-        <div className="text-xs text-gray-300">
-          {room.widthM.toFixed(1)}m × {room.heightM.toFixed(1)}m / {(room.widthM * 3.28084).toFixed(1)}ft × {(room.heightM * 3.28084).toFixed(1)}ft
+
+      <div className="pointer-events-none absolute inset-x-1 top-1 rounded-lg bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur-sm">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">{room.name}</span>
+          {room.dataset && (
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
+              {analysis?.deadzones.length ?? 0} deadzones
+            </span>
+          )}
+        </div>
+        <div className="text-[10px] text-gray-200/90">
+          {draftRoom.widthM.toFixed(1)}m x {draftRoom.heightM.toFixed(1)}m · {(draftRoom.widthM * 3.28084).toFixed(1)}ft x {(draftRoom.heightM * 3.28084).toFixed(1)}ft
         </div>
       </div>
 
-      {/* RESIZE HANDLE - disabled if room has dataset */}
       {!room.dataset && (
         <div
           onMouseDown={startResize}
-          className="absolute bottom-0 right-0 w-3 h-3 bg-blue-400 cursor-se-resize"
+          className="absolute bottom-1 right-1 h-4 w-4 cursor-se-resize rounded-sm bg-sky-200/90"
         />
       )}
     </div>

@@ -1,171 +1,200 @@
 "use client"
 
-import React, { useEffect } from "react"
-import { useFloorPlan } from "@/store/useFloorPlan"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
+import { buildWholeFloorRouterMarkers, RouterMarker } from "@/lib/routerPlanning"
 import FloorRoomRect from "./FloorRoomRect"
+import { useFloorPlan } from "@/store/useFloorPlan"
+
+const MIN_SCALE = 12
+const MAX_SCALE = 260
 
 export default function FloorCanvas() {
   const { floors, currentFloorId } = useFloorPlan((s) => ({
     floors: s.floors,
     currentFloorId: s.currentFloorId,
   }))
-  const currentFloor = floors.find((f) => f.id === currentFloorId)
-  const rooms = currentFloor?.rooms ?? []
+  const currentFloor = floors.find((floor) => floor.id === currentFloorId)
+  const rooms = useMemo(() => currentFloor?.rooms ?? [], [currentFloor])
 
   const scale = useFloorPlan((s) => s.scale)
   const setScale = useFloorPlan((s) => s.setScale)
   const offsetX = useFloorPlan((s) => s.offsetX)
   const offsetY = useFloorPlan((s) => s.offsetY)
   const setOffset = useFloorPlan((s) => s.setOffset)
-  const updateRoom = useFloorPlan((s) => s.updateRoom)
-  const selectedRoomIds = useFloorPlan((s) => s.selectedRoomIds)
   const toggleRoomSelection = useFloorPlan((s) => s.toggleRoomSelection)
+  const snapUnit = useFloorPlan((s) => s.snapUnit)
 
-
-  // convert world coordinate (meters) to pixel position
-  const toPx = (x: number) => (x + offsetX) * scale
-  const toPy = (y: number) => (y + offsetY) * scale
-
-  const SNAP_DISTANCE = 0.4 // meters
-
-  
-
-const snapToNearbyRoom = (
-    candidate: { x: number; y: number; widthM: number; heightM: number; id: string }
-  ) => {
-    let newX = candidate.x
-    let newY = candidate.y
-
-    rooms.forEach((r) => {
-      if (r.id === candidate.id) return
-
-      // Snap left edge
-      if (Math.abs(candidate.x - (r.x + r.widthM)) < SNAP_DISTANCE) {
-        newX = r.x + r.widthM
-      }
-
-      // Snap right edge
-      if (Math.abs(candidate.x + candidate.widthM - r.x) < SNAP_DISTANCE) {
-        newX = r.x - candidate.widthM
-      }
-
-      // Snap top
-      if (Math.abs(candidate.y - (r.y + r.heightM)) < SNAP_DISTANCE) {
-        newY = r.y + r.heightM
-      }
-
-      // Snap bottom
-      if (Math.abs(candidate.y + candidate.heightM - r.y) < SNAP_DISTANCE) {
-        newY = r.y - candidate.heightM
-      }
-    })
-
-    return { x: newX, y: newY }
-  }
-
-  const isOverlap = (
-    a: { x: number; y: number; widthM: number; heightM: number },
-    b: { x: number; y: number; widthM: number; heightM: number }
-  ) =>
-    a.x < b.x + b.widthM &&
-    a.x + a.widthM > b.x &&
-    a.y < b.y + b.heightM &&
-    a.y + a.heightM > b.y
-
-  const collides = (candidate: {
-    id: string
-    x: number
-    y: number
-    widthM: number
-    heightM: number
-  }) =>
-    rooms.some(
-      (r) => r.id !== candidate.id && isOverlap(candidate, r)
-    )
+  const scaleRef = useRef(scale)
+  const offsetRef = useRef({ x: offsetX, y: offsetY })
+  const canvasRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "+" || e.key === "=") {
-        const newScale = scale * 1.2
-        setScale(newScale)
-        setOffset(offsetX * 1.2, offsetY * 1.2)
+    scaleRef.current = scale
+  }, [scale])
+
+  useEffect(() => {
+    offsetRef.current = { x: offsetX, y: offsetY }
+  }, [offsetX, offsetY])
+
+  const zoomAtPoint = useCallback((targetScale: number, clientX?: number, clientY?: number) => {
+    const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale))
+    const rect = canvasRef.current?.getBoundingClientRect()
+
+    if (!rect || clientX === undefined || clientY === undefined) {
+      scaleRef.current = clamped
+      setScale(clamped)
+      return
+    }
+
+    const localX = clientX - rect.left
+    const localY = clientY - rect.top
+    const worldX = localX / scaleRef.current - offsetRef.current.x
+    const worldY = localY / scaleRef.current - offsetRef.current.y
+    const nextOffsetX = localX / clamped - worldX
+    const nextOffsetY = localY / clamped - worldY
+
+    scaleRef.current = clamped
+    offsetRef.current = { x: nextOffsetX, y: nextOffsetY }
+    setScale(clamped)
+    setOffset(nextOffsetX, nextOffsetY)
+  }, [setOffset, setScale])
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const rect = canvasRef.current?.getBoundingClientRect()
+      const centerX = rect ? rect.left + rect.width / 2 : undefined
+      const centerY = rect ? rect.top + rect.height / 2 : undefined
+
+      if (event.key === "+" || event.key === "=") {
+        zoomAtPoint(scaleRef.current * 1.12, centerX, centerY)
       }
-      if (e.key === "-") {
-        const newScale = scale / 1.2
-        setScale(newScale)
-        setOffset(offsetX / 1.2, offsetY / 1.2)
+      if (event.key === "-") {
+        zoomAtPoint(scaleRef.current / 1.12, centerX, centerY)
       }
-      if (e.key === "0") {
+      if (event.key === "0") {
+        scaleRef.current = 60
+        offsetRef.current = { x: 0, y: 0 }
         setScale(60)
         setOffset(0, 0)
       }
-      if (e.key === "Escape") {
+      if (event.key === "Escape") {
         toggleRoomSelection(null, false)
       }
     }
+
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [setScale, setOffset, toggleRoomSelection])
+  }, [setOffset, setScale, toggleRoomSelection, zoomAtPoint])
 
-  // panning state
-  const isPanning = React.useRef(false)
-  const lastMouse = React.useRef({ x: 0, y: 0 })
+  const isPanning = useRef(false)
+  const lastMouse = useRef({ x: 0, y: 0 })
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
-    // Allow panning on empty space (not on a room)
-    if (e.target === e.currentTarget) {
+  const gridSize = snapUnit === "meters" ? 1 : 0.3048
+  const majorGridPx = Math.max(20, scale * gridSize)
+  const minorGridPx = Math.max(10, majorGridPx / 5)
+  const axisX = offsetX * scale
+  const axisY = offsetY * scale
+
+  const backgroundStyle = useMemo(
+    () => ({
+      backgroundColor: "#06101c",
+      backgroundImage: `
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(rgba(89, 164, 255, 0.14) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(89, 164, 255, 0.14) 1px, transparent 1px)
+      `,
+      backgroundSize: `${minorGridPx}px ${minorGridPx}px, ${minorGridPx}px ${minorGridPx}px, ${majorGridPx}px ${majorGridPx}px, ${majorGridPx}px ${majorGridPx}px`,
+      backgroundPosition: `${axisX}px ${axisY}px, ${axisX}px ${axisY}px, ${axisX}px ${axisY}px, ${axisX}px ${axisY}px`,
+    }),
+    [axisX, axisY, majorGridPx, minorGridPx]
+  )
+  const wholeFloorPlan = useMemo(() => buildWholeFloorRouterMarkers(rooms, "wifi"), [rooms])
+  const floorMarkers = wholeFloorPlan.markers
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    if (event.target === event.currentTarget) {
       isPanning.current = true
-      lastMouse.current = { x: e.clientX, y: e.clientY }
-      e.currentTarget.style.cursor = "grabbing"
+      lastMouse.current = { x: event.clientX, y: event.clientY }
+      event.currentTarget.style.cursor = "grabbing"
     }
   }
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!isPanning.current) return
-    const dx = e.clientX - lastMouse.current.x
-    const dy = e.clientY - lastMouse.current.y
-    lastMouse.current = { x: e.clientX, y: e.clientY }
-    // Pan is positive when mouse moves left/up (offset increases)
-    setOffset(offsetX - dx / scale, offsetY - dy / scale)
+    const dx = event.clientX - lastMouse.current.x
+    const dy = event.clientY - lastMouse.current.y
+    lastMouse.current = { x: event.clientX, y: event.clientY }
+    setOffset(
+      offsetRef.current.x + dx / scaleRef.current,
+      offsetRef.current.y + dy / scaleRef.current
+    )
   }
 
-  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseUp = (event: React.MouseEvent<HTMLDivElement>) => {
     if (isPanning.current) {
       isPanning.current = false
-      if (e.currentTarget) e.currentTarget.style.cursor = "default"
+      event.currentTarget.style.cursor = "grab"
     }
   }
 
   return (
     <div
-      className="flex-1 relative bg-neutral-900 overflow-hidden"
-      onClick={(e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.target === e.currentTarget) toggleRoomSelection(null, false)
+      ref={canvasRef}
+      className="relative flex-1 overflow-hidden"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) toggleRoomSelection(null, false)
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      onWheel={(e) => {
-        e.preventDefault()
-        // invert scroll: wheel down (positive) should zoom out
-        const factor = e.deltaY > 0 ? 0.9 : 1.1
-        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
-        const cx = e.clientX - rect.left
-        const cy = e.clientY - rect.top
-        const worldX = cx / scale - offsetX
-        const worldY = cy / scale - offsetY
-        const newScale = scale * factor
-        setScale(newScale)
-        setOffset(cx / newScale - worldX, cy / newScale - worldY)
+      onWheel={(event) => {
+        event.preventDefault()
+        const zoomFactor = Math.exp(-event.deltaY * 0.0012)
+        zoomAtPoint(scaleRef.current * zoomFactor, event.clientX, event.clientY)
       }}
-      style={{ cursor: 'grab' }}
+      style={{ cursor: "grab", ...backgroundStyle }}
     >
+      <div
+        className="pointer-events-none absolute inset-y-0 w-px bg-sky-300/25"
+        style={{ left: axisX }}
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 h-px bg-sky-300/25"
+        style={{ top: axisY }}
+      />
 
+      <div className="pointer-events-none absolute left-4 top-4 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs text-white/80 backdrop-blur">
+        Graph grid: {snapUnit === "meters" ? "1m" : "1ft"} snap. Scroll to zoom, drag empty space to pan.
+      </div>
 
       {rooms.map((room) => (
         <FloorRoomRect key={room.id} room={room} />
+      ))}
+
+      {floorMarkers.map((floorMarker) => (
+        <div
+          key={floorMarker.id}
+          className="pointer-events-none absolute"
+          style={{
+            left: (floorMarker.x + offsetX) * scale,
+            top: (floorMarker.y + offsetY) * scale,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+          <div className="flex flex-col items-center gap-1">
+            <div
+              className={`h-5 w-5 rounded-full border-2 border-white ${
+                floorMarker.kind === "existing" ? "bg-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.75)]" : "bg-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.85)]"
+              }`}
+            />
+            <div className="rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-emerald-100">
+              {floorMarker.label ?? "Floor router"}
+            </div>
+          </div>
+        </div>
       ))}
     </div>
   )

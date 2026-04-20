@@ -35,7 +35,7 @@ export default function RoomHeatmapOverlay({
     })
     // compute adaptive resolution for overlay
     const res = (() => {
-      const maxCells = 200
+      const maxCells = 110
       const largest = Math.max(widthM, heightM)
       const base = largest / maxCells
       let r = Math.max(0.05, Math.min(0.3, base))
@@ -77,7 +77,7 @@ export default function RoomHeatmapOverlay({
         ctx.fillRect(gx, gy, resolution * BASE_SCALE, resolution * BASE_SCALE)
       }
     }
-  }, [gridMemo])
+  }, [gridMemo, heightM, widthM])
 
   return (
     <canvas

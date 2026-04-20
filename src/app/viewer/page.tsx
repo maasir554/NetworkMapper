@@ -1,12 +1,15 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
+import { Suspense, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
-import { useFloorPlan } from "@/store/useFloorPlan"
 import HeatmapScene from "@/components/HeatmapScene"
 import { Card } from "@/components/ui/card"
-import { mergeRoomHeatmaps } from "@/lib/utils"
+import { buildWholeFloorRouterMarkers } from "@/lib/routerPlanning"
+import { useFloorPlan } from "@/store/useFloorPlan"
 
-export default function ViewerPage() {
+function ViewerPageClient() {
   const search = useSearchParams()
   const idsParam = search.get("rooms")
 
@@ -14,45 +17,34 @@ export default function ViewerPage() {
     floors: s.floors,
     currentFloorId: s.currentFloorId,
   }))
-  const currentFloor = floors.find((f) => f.id === currentFloorId)
+  const currentFloor = floors.find((floor) => floor.id === currentFloorId)
   const rooms = currentFloor?.rooms ?? []
+  const ids = idsParam ? idsParam.split(",") : []
+  const selectedRooms = rooms.filter((room) => ids.includes(room.id))
+  const wholeFloorPlan = useMemo(() => buildWholeFloorRouterMarkers(selectedRooms, "wifi"), [selectedRooms])
 
-  if (!idsParam) return <div>No rooms selected</div>
+  if (!idsParam) return <div className="h-screen flex items-center justify-center text-white">No rooms selected</div>
 
-  const ids = idsParam.split(",")
-  const selectedRooms = rooms.filter((r) => ids.includes(r.id))
-
-  if (selectedRooms.length === 0) {
-    return <div>No rooms found</div>
-  }
-
-  if (selectedRooms.length === 1) {
-    const room = selectedRooms[0]
-    return (
-      <div className="h-screen p-6 bg-neutral-950">
-        <Card className="h-full">
-          <HeatmapScene
-            initialSignal="wifi"
-            dataset={room.dataset ?? null}
-            filename={room.name}
-          />
-        </Card>
-      </div>
-    )
-  }
-
-  // merge for multi-room view
-  const merged = mergeRoomHeatmaps(selectedRooms)
+  if (selectedRooms.length === 0) return <div className="h-screen flex items-center justify-center text-white">No rooms found</div>
 
   return (
-    <div className="h-screen p-6 bg-neutral-950">
+    <div className="h-screen bg-neutral-950 p-6">
       <Card className="h-full">
         <HeatmapScene
           initialSignal="wifi"
-          dataset={merged}
-          filename={merged ? "Combined rooms" : "No data"}
+          dataset={wholeFloorPlan.dataset}
+          filename={wholeFloorPlan.dataset ? `Combined rooms (${selectedRooms.length})` : "No data"}
+          routerMarkers={wholeFloorPlan.markers}
         />
       </Card>
     </div>
+  )
+}
+
+export default function ViewerPage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center text-white">Loading viewer…</div>}>
+      <ViewerPageClient />
+    </Suspense>
   )
 }

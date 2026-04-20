@@ -16,7 +16,7 @@ export function cn(...inputs: ClassValue[]) {
  * Useful for the 3D viewer when stitching multiple rooms together.
  */
 export function mergeRoomHeatmaps(rooms: FloorRoom[]): RoomHeatmap | null {
-  let points: SignalPoint[] = []
+  const points: SignalPoint[] = []
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity

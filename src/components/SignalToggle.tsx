@@ -1,11 +1,11 @@
 "use client"
 
-import { useDataset } from "@/store/useDataset"
 import { Button } from "@/components/ui/button"
+import { useDataset } from "@/store/useDataset"
 
 export default function SignalToggle() {
-  const signalType = useDataset((s) => s.signalType)
-  const setSignalType = useDataset((s) => s.setSignalType)
+  const signal = useDataset((s) => s.signal)
+  const setSignal = useDataset((s) => s.setSignal)
 
   const options = [
     { key: "wifi", label: "WiFi" },
@@ -15,13 +15,13 @@ export default function SignalToggle() {
 
   return (
     <div className="flex gap-2">
-      {options.map((o) => (
+      {options.map((option) => (
         <Button
-          key={o.key}
-          variant={signalType === o.key ? "default" : "secondary"}
-          onClick={() => setSignalType(o.key)}
+          key={option.key}
+          variant={signal === option.key ? "default" : "secondary"}
+          onClick={() => setSignal(option.key)}
         >
-          {o.label}
+          {option.label}
         </Button>
       ))}
     </div>

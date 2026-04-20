@@ -12,6 +12,8 @@ export default function ViewerHeader({
   signal,
   onChange,
   filename,
+  quality,
+  onQualityChange,
 }: {
   signal: SignalType
   onChange: (s: SignalType) => void
@@ -20,18 +22,16 @@ export default function ViewerHeader({
   onQualityChange?: (q: number) => void
 }) {
   return (
-    <div className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur px-3 py-2 rounded-lg flex gap-3 items-center">
+    <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-black/55 px-4 py-3 backdrop-blur-md">
       <div className="flex flex-col gap-1">
-        {filename && (
-          <span className="text-xs text-muted-foreground font-medium">{filename}</span>
-        )}
+        {filename && <span className="text-xs font-medium text-neutral-300">{filename}</span>}
         <span className="text-sm font-semibold">{labels[signal]}</span>
       </div>
 
       <select
         value={signal}
         onChange={(e) => onChange(e.target.value as SignalType)}
-        className="bg-neutral-800 text-sm px-2 py-1 rounded"
+        className="rounded-lg border border-white/10 bg-neutral-900/80 px-3 py-2 text-sm"
       >
         <option value="wifi">WiFi</option>
         <option value="lte">4G LTE</option>
@@ -39,8 +39,8 @@ export default function ViewerHeader({
       </select>
 
       {typeof quality === "number" && onQualityChange && (
-        <div className="flex items-center gap-1">
-          <span className="text-xs">Q</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutral-300">Detail</span>
           <input
             type="range"
             min="0.5"
@@ -50,6 +50,7 @@ export default function ViewerHeader({
             onChange={(e) => onQualityChange(Number(e.target.value))}
             className="w-24"
           />
+          <span className="text-xs text-neutral-300">{quality.toFixed(1)}x</span>
         </div>
       )}
     </div>

@@ -1,8 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-export interface SquareCardProps
-  extends React.HTMLAttributes<HTMLDivElement> {}
+export type SquareCardProps = React.HTMLAttributes<HTMLDivElement>
 
 export const SquareCard = React.forwardRef<
   HTMLDivElement,

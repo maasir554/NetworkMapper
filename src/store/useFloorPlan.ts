@@ -24,6 +24,8 @@ export type Floor = {
   rooms: FloorRoom[]
 }
 
+export type RouterPlanningMode = "per-room" | "whole-floor"
+
 type FloorState = {
   floors: Floor[]
   currentFloorId: string | null
@@ -40,6 +42,9 @@ type FloorState = {
   // snap unit: "feet" (0.3048m) or "meters" (1m)
   snapUnit: "feet" | "meters"
   setSnapUnit: (unit: "feet" | "meters") => void
+
+  routerPlanningMode: RouterPlanningMode
+  setRouterPlanningMode: (mode: RouterPlanningMode) => void
 
   // grid snapping increment (meters, 0 = off)
   gridSize: number
@@ -170,6 +175,9 @@ export const useFloorPlan = create<FloorState>((set) => {
     snapUnit: "feet",
     setSnapUnit: (unit) => set({ snapUnit: unit }),
 
+    routerPlanningMode: "whole-floor",
+    setRouterPlanningMode: (mode) => set({ routerPlanningMode: mode }),
+
     // grid snapping increment (meters) - 1 foot = 0.3048m
     gridSize: 0.3048,
     setGridSize: (v) => set({ gridSize: v }),
@@ -195,7 +203,7 @@ export const useFloorPlan = create<FloorState>((set) => {
           )
 
         let x = 1
-        let y = 1
+        const y = 1
         while (collidesWith(x, y)) {
           // move right by one meter until we find a free spot
           x += widthM + 1
