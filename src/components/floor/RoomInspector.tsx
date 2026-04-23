@@ -65,13 +65,13 @@ export default function RoomInspector() {
       <input
         value={room.name}
         onChange={(e) => updateRoom(room.id, { name: e.target.value })}
-        className="w-full border bg-black p-2"
+        className="w-full border border-border bg-background p-2 rounded text-foreground"
       />
 
       <select
         value={inputUnit}
         onChange={(e) => setInputUnit(e.target.value as "m" | "ft")}
-        className="rounded border bg-black p-2 text-sm"
+        className="rounded border border-border bg-background p-2 text-sm text-foreground"
       >
         <option value="m">Meters</option>
         <option value="ft">Feet</option>
@@ -83,7 +83,7 @@ export default function RoomInspector() {
           value={displayWidth.toFixed(2)}
           onChange={(e) => handleDimensionChange("widthM", Number(e.target.value))}
           disabled={!!room.dataset}
-          className="w-full border bg-black p-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full border border-border bg-background p-2 rounded text-foreground disabled:cursor-not-allowed disabled:opacity-50"
           placeholder={`Width (${inputUnit})`}
           step="0.1"
         />
@@ -93,7 +93,7 @@ export default function RoomInspector() {
           value={displayHeight.toFixed(2)}
           onChange={(e) => handleDimensionChange("heightM", Number(e.target.value))}
           disabled={!!room.dataset}
-          className="w-full border bg-black p-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full border border-border bg-background p-2 rounded text-foreground disabled:cursor-not-allowed disabled:opacity-50"
           placeholder={`Height (${inputUnit})`}
           step="0.1"
         />

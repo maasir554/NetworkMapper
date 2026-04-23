@@ -65,7 +65,7 @@ export default function HeatmapSurface({
       const t = Math.max(0, Math.min((value + 120) / 70, 1))
       const hue = t * 0.33
       const color = new THREE.Color()
-      color.setHSL(hue, 1, 0.5)
+      color.setHSL(hue, 0.9, 0.55)
       return color
     }
 

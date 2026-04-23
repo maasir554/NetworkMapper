@@ -23,13 +23,13 @@ export default function FloorSidebar() {
   const wholeFloorPlan = useMemo(() => buildWholeFloorRouterMarkers(rooms, "wifi"), [rooms])
 
   return (
-    <div className={`${collapsed ? "w-[72px]" : "w-[340px]"} flex shrink-0 flex-col border-r border-white/10 bg-[#09131f] transition-[width]`}>
-      <div className="flex items-center justify-between border-b border-white/10 p-3">
-        {!collapsed && <h2 className="text-lg font-bold">Floor Planner</h2>}
+    <div className={`${collapsed ? "w-[72px]" : "w-[340px]"} flex shrink-0 flex-col border-r border-border bg-card transition-[width]`}>
+      <div className="flex items-center justify-between border-b border-border p-3">
+        {!collapsed && <h2 className="text-lg font-bold text-foreground">Floor Planner</h2>}
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
-          className="rounded-full border border-white/10 px-2 py-1 text-xs text-white/70"
+          className="rounded-full border border-border px-2 py-1 text-xs text-muted-foreground"
         >
           {collapsed ? ">" : "<"}
         </button>
@@ -37,7 +37,7 @@ export default function FloorSidebar() {
 
       {!collapsed && (
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-muted-foreground">
             Lay out rooms on a snapping grid, attach measured JSONs, then open combined coverage in the 3D viewer.
           </p>
 
@@ -51,7 +51,7 @@ export default function FloorSidebar() {
           <SquareCard className="space-y-3 p-4">
             <div>
               <div className="font-semibold">Router planning</div>
-              <div className="text-xs text-white/55">
+              <div className="text-xs text-muted-foreground">
                 Whole-floor router suggestions for the current floor.
               </div>
             </div>
@@ -81,14 +81,14 @@ export default function FloorSidebar() {
                   type="number"
                   value={width}
                   onChange={(e) => setWidth(Number(e.target.value))}
-                  className="w-16 rounded bg-neutral-900 p-1"
+                  className="w-16 rounded bg-background border border-border p-1 text-foreground"
                 />
                 <span>x</span>
                 <input
                   type="number"
                   value={height}
                   onChange={(e) => setHeight(Number(e.target.value))}
-                  className="w-16 rounded bg-neutral-900 p-1"
+                  className="w-16 rounded bg-background border border-border p-1 text-foreground"
                 />
               </div>
               <Button onClick={() => addRoom(width, height)} className="w-full">

@@ -97,12 +97,12 @@ export default function FloorCanvas() {
 
   const backgroundStyle = useMemo(
     () => ({
-      backgroundColor: "#06101c",
+      backgroundColor: "#f8fafc",
       backgroundImage: `
-        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px),
-        linear-gradient(rgba(89, 164, 255, 0.14) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(89, 164, 255, 0.14) 1px, transparent 1px)
+        linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px),
+        linear-gradient(rgba(37, 99, 235, 0.2) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(37, 99, 235, 0.2) 1px, transparent 1px)
       `,
       backgroundSize: `${minorGridPx}px ${minorGridPx}px, ${minorGridPx}px ${minorGridPx}px, ${majorGridPx}px ${majorGridPx}px, ${majorGridPx}px ${majorGridPx}px`,
       backgroundPosition: `${axisX}px ${axisY}px, ${axisX}px ${axisY}px, ${axisX}px ${axisY}px, ${axisX}px ${axisY}px`,
@@ -166,7 +166,7 @@ export default function FloorCanvas() {
         style={{ top: axisY }}
       />
 
-      <div className="pointer-events-none absolute left-4 top-4 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs text-white/80 backdrop-blur">
+      <div className="pointer-events-none absolute left-4 top-4 rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground backdrop-blur">
         Graph grid: {snapUnit === "meters" ? "1m" : "1ft"} snap. Scroll to zoom, drag empty space to pan.
       </div>
 

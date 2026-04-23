@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { ChevronDown, ChevronUp } from "lucide-react"
 import { analyzeSignalDataset, getSignalLabel } from "@/lib/signalAnalysis"
 import { RouterMarker } from "@/lib/routerPlanning"
 import { SignalType } from "@/store/useDataset"
@@ -10,154 +11,112 @@ export default function SignalInsights({
   dataset,
   signal,
   routerMarkers = [],
+  overlay = false,
 }: {
   dataset: RoomHeatmap | null
   signal: SignalType
   routerMarkers?: RouterMarker[]
+  overlay?: boolean
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const analysis = analyzeSignalDataset(dataset, signal)
 
-  if (!analysis) {
-    return (
-      <div className="absolute right-3 top-3 z-10 max-w-[320px] rounded-2xl border border-white/10 bg-black/55 p-4 text-sm text-neutral-200 backdrop-blur-md">
-        <div className="flex items-center justify-between gap-3">
-          <div className="font-semibold">No coverage audit yet</div>
-          <button
-            type="button"
-            onClick={() => setCollapsed((value) => !value)}
-            className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
-          >
-            {collapsed ? "Open" : "Hide"}
-          </button>
-        </div>
-        {!collapsed && (
-          <p className="mt-1 text-xs text-neutral-300">
-            Upload a valid room map to audit weak coverage and recommend a router position.
-          </p>
-        )}
-      </div>
-    )
-  }
+  const containerClasses = overlay
+    ? `absolute bottom-6 right-6 z-10 ${collapsed ? "w-56" : "w-80"} ${collapsed ? "h-auto" : "h-[280px]"} overflow-hidden rounded-2xl border border-white/10 bg-card/75 text-sm text-foreground shadow-xl backdrop-blur-md transition-all duration-300`
+    : "h-full overflow-y-auto rounded-2xl border border-border bg-card p-4 text-sm text-foreground"
 
-  return (
-    <div className="absolute right-3 top-3 z-10 max-w-[340px] rounded-2xl border border-white/10 bg-black/55 p-4 text-sm text-neutral-100 backdrop-blur-md">
-      <div className="flex items-start justify-between gap-3">
+  const innerContent = (
+    <div className={`h-full flex flex-col ${overlay ? "p-4" : ""}`}>
+      <div className="flex items-start justify-between gap-3 sticky top-0 bg-transparent pb-2 z-10">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-neutral-400">Coverage audit</div>
-          <div className="mt-1 font-semibold">{getSignalLabel(signal)}</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-bold">Coverage audit</div>
+          <div className="mt-0.5 font-semibold text-foreground line-clamp-1">{getSignalLabel(signal)}</div>
         </div>
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
-          className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-neutral-200"
+          className="flex items-center justify-center rounded-full border border-border bg-background/50 p-1.5 text-muted-foreground hover:bg-background/80 transition-colors shrink-0"
         >
-          {collapsed ? "Open" : "Hide"}
+          {collapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
       </div>
 
       {!collapsed && (
-        <div className="mt-3 space-y-3">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-xl bg-white/5 p-2">
-              <div className="text-neutral-400">Average</div>
-              <div className="mt-1 text-sm font-semibold">{analysis.average} dBm</div>
+        <div className="relative flex-1 min-h-0">
+          <div className="h-full overflow-y-auto pr-1 space-y-3 pb-8">
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="rounded-xl border border-border bg-muted p-2">
+                <div className="text-muted-foreground">Average</div>
+                <div className="mt-1 text-sm font-semibold text-foreground">{analysis?.average ?? "N/A"} dBm</div>
+              </div>
+              <div className="rounded-xl border border-border bg-muted p-2">
+                <div className="text-muted-foreground">Worst</div>
+                <div className="mt-1 text-sm font-semibold text-foreground">{analysis?.worst ?? "N/A"} dBm</div>
+              </div>
+              <div className="rounded-xl border border-border bg-muted p-2">
+                <div className="text-muted-foreground">Threshold</div>
+                <div className="mt-1 text-sm font-semibold text-foreground">{analysis?.threshold ?? "N/A"} dBm</div>
+              </div>
+              <div className="rounded-xl border border-border bg-muted p-2">
+                <div className="text-muted-foreground">Deadzones</div>
+                <div className="mt-1 text-sm font-semibold text-foreground">{analysis?.deadzones.length ?? 0}</div>
+              </div>
             </div>
-            <div className="rounded-xl bg-white/5 p-2">
-              <div className="text-neutral-400">Worst</div>
-              <div className="mt-1 text-sm font-semibold">{analysis.worst} dBm</div>
-            </div>
-            <div className="rounded-xl bg-white/5 p-2">
-              <div className="text-neutral-400">Threshold</div>
-              <div className="mt-1 text-sm font-semibold">{analysis.threshold} dBm</div>
-            </div>
-            <div className="rounded-xl bg-white/5 p-2">
-              <div className="text-neutral-400">Deadzones</div>
-              <div className="mt-1 text-sm font-semibold">{analysis.deadzones.length}</div>
-            </div>
-          </div>
 
-          {analysis.existingRouterEstimate && (
-            <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
-              <div className="text-xs uppercase tracking-[0.16em] text-amber-200">
-                {analysis.existingRouterEstimate.label}
-              </div>
-              <div className="mt-1 font-semibold">
-                {analysis.existingRouterEstimate.x}m, {analysis.existingRouterEstimate.y}m
-              </div>
-              <p className="mt-1 text-xs text-amber-50/90">{analysis.existingRouterEstimate.rationale}</p>
-              <details className="mt-2 text-[11px] text-amber-100/85">
-                <summary className="cursor-pointer">Why this point</summary>
-                <p className="mt-2">{analysis.existingRouterEstimate.mathSummary}</p>
-              </details>
-            </div>
-          )}
-
-          {analysis.routerEstimate && (
-            <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3">
-              <div className="text-xs uppercase tracking-[0.16em] text-emerald-200">
-                {analysis.routerEstimate.label}
-              </div>
-              <div className="mt-1 font-semibold">
-                {analysis.routerEstimate.x}m, {analysis.routerEstimate.y}m
-              </div>
-              <p className="mt-1 text-xs text-emerald-50/90">{analysis.routerEstimate.rationale}</p>
-              <details className="mt-2 text-[11px] text-emerald-100/85">
-                <summary className="cursor-pointer">Why this point</summary>
-                <p className="mt-2">{analysis.routerEstimate.mathSummary}</p>
-              </details>
-            </div>
-          )}
-
-          {signal === "wifi" && routerMarkers.length > 0 && (
-            <div className="rounded-xl border border-sky-400/20 bg-sky-400/10 p-3 text-xs">
-              <div className="text-xs uppercase tracking-[0.16em] text-sky-100">
-                Router list
-              </div>
-              <div className="mt-2 space-y-2">
-                {routerMarkers.map((marker) => (
-                  <div key={marker.id} className="flex items-center justify-between gap-3 rounded-lg bg-black/20 px-2 py-2">
-                    <span>{marker.label ?? marker.roomName ?? "Router"}</span>
-                    <span className="text-sky-50">
-                      {marker.x.toFixed(1)}m, {marker.y.toFixed(1)}m
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {signal !== "wifi" && (
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-neutral-200/90">
-              Router placement is only calculated for Wi-Fi. LTE and 5G layers stay view-only so the app does not imply tower or cellular source installation points.
-            </div>
-          )}
-
-          {analysis.deadzones.length > 0 ? (
-            <div className="space-y-2">
-              <div className="text-xs uppercase tracking-[0.16em] text-neutral-400">
-                Weak coverage zones
-              </div>
-              {analysis.deadzones.slice(0, 3).map((zone) => (
-                <div key={zone.id} className="rounded-xl bg-white/5 p-3 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium capitalize">{zone.severity}</span>
-                    <span>{zone.areaM2.toFixed(1)} m2</span>
-                  </div>
-                  <div className="mt-1 text-neutral-300">
-                    Center {zone.centroid.x.toFixed(1)}m, {zone.centroid.y.toFixed(1)}m
-                  </div>
-                  <div className="text-neutral-300">Worst {zone.minValue.toFixed(1)} dBm</div>
+            {analysis?.existingRouterEstimate && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-amber-700 font-bold">
+                  {analysis.existingRouterEstimate.label}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl bg-emerald-400/10 p-3 text-xs text-emerald-100">
-              No contiguous deadzones detected below {analysis.threshold} dBm.
-            </div>
-          )}
+                <div className="mt-1 font-semibold text-foreground">
+                  {analysis.existingRouterEstimate.x}m, {analysis.existingRouterEstimate.y}m
+                </div>
+                <p className="mt-1 text-[11px] text-amber-700 leading-tight">{analysis.existingRouterEstimate.rationale}</p>
+              </div>
+            )}
+
+            {analysis?.routerEstimate && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-700 font-bold">
+                  {analysis.routerEstimate.label}
+                </div>
+                <div className="mt-1 font-semibold text-foreground">
+                  {analysis.routerEstimate.x}m, {analysis.routerEstimate.y}m
+                </div>
+                <p className="mt-1 text-[11px] text-emerald-700 leading-tight">{analysis.routerEstimate.rationale}</p>
+              </div>
+            )}
+
+            {signal === "wifi" && routerMarkers.length > 0 && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-sky-700 font-bold">
+                  Router list
+                </div>
+                <div className="mt-2 space-y-2">
+                  {routerMarkers.map((marker) => (
+                    <div key={marker.id} className="flex items-center justify-between gap-3 rounded-lg border border-sky-200 bg-white px-2 py-2">
+                      <span className="text-foreground text-[11px]">{marker.label ?? marker.roomName ?? "Router"}</span>
+                      <span className="text-sky-700 font-medium">
+                        {marker.x.toFixed(1)}m
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!analysis && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Upload a valid room map to audit weak coverage and recommend a router position.
+              </p>
+            )}
+          </div>
+          {/* Scroll fade overlay */}
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card/90 to-transparent" />
         </div>
       )}
     </div>
   )
+
+  return <div className={containerClasses}>{innerContent}</div>
 }

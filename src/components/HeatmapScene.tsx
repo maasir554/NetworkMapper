@@ -14,7 +14,7 @@ import { RouterMarker, buildRouterMarkersForDataset } from "@/lib/routerPlanning
 
 function WebGLFallback({ filename }: { filename?: string | null }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center bg-neutral-950 text-white">
+    <div className="flex h-full flex-col items-center justify-center bg-white text-black">
       <div className="text-center space-y-4 max-w-md">
         <div className="text-6xl">⚠️</div>
         <h2 className="text-xl font-semibold">3D Viewer Unavailable</h2>
@@ -43,11 +43,13 @@ export default function HeatmapScene({
   dataset,
   filename,
   routerMarkers = [],
+  hideInsights = false,
 }: {
   initialSignal: SignalType
   dataset: RoomHeatmap | null
   filename?: string | null
   routerMarkers?: RouterMarker[]
+  hideInsights?: boolean
 }) {
   const [signal, setSignal] = useState<SignalType>(initialSignal)
   const [quality, setQuality] = useState(0.7)
@@ -87,7 +89,12 @@ export default function HeatmapScene({
           onQualityChange={setQuality}
         />
         <WebGLFallback filename={filename} />
-        <SignalInsights dataset={dataset} signal={signal} routerMarkers={signal === "wifi" ? routerMarkers : []} />
+        <SignalInsights
+          dataset={dataset}
+          signal={signal}
+          routerMarkers={signal === "wifi" ? routerMarkers : []}
+          overlay
+        />
         <HeatmapLegend signal={signal} />
       </div>
     )
@@ -95,7 +102,7 @@ export default function HeatmapScene({
 
   if (webglSupported === null) {
     return (
-      <div className="relative h-full min-h-[150px] w-full overflow-hidden rounded-xl bg-neutral-950 flex items-center justify-center">
+      <div className="relative h-full min-h-[150px] w-full overflow-hidden rounded-xl bg-white flex items-center justify-center">
         <div className="text-white text-sm">Checking WebGL support...</div>
       </div>
     )
@@ -122,14 +129,14 @@ export default function HeatmapScene({
             far: farPlane,
           }}
         >
-          <ambientLight intensity={0.35} />
-          <directionalLight position={[5, 12, 5]} intensity={1.4} />
-          <directionalLight position={[-5, 10, -5]} intensity={0.5} />
-          <color attach="background" args={["#07111d"]} />
-          <fog attach="fog" args={["#07111d", camDistance * 1.2, farPlane * 0.55]} />
+          <ambientLight intensity={0.62} />
+          <directionalLight position={[5, 12, 5]} intensity={2.1} />
+          <directionalLight position={[-5, 10, -5]} intensity={0.85} />
+          <color attach="background" args={["#fcfcfd"]} />
+          <fog attach="fog" args={["#fcfcfd", camDistance * 1.2, farPlane * 0.55]} />
 
           <gridHelper
-            args={[gridSize, gridDivisions, "#4f89c6", "#27456b"]}
+            args={[gridSize, gridDivisions, "#94a3b8", "#cbd5e1"]}
             position={[0, 0.01, 0]}
           />
 
@@ -144,8 +151,15 @@ export default function HeatmapScene({
         </Canvas>
       </div>
 
-      <SignalInsights dataset={dataset} signal={signal} routerMarkers={signal === "wifi" ? routerMarkers : []} />
       <HeatmapLegend signal={signal} />
+      {!hideInsights && (
+        <SignalInsights
+          dataset={dataset}
+          signal={signal}
+          routerMarkers={signal === "wifi" ? routerMarkers : []}
+          overlay
+        />
+      )}
     </div>
   )
 }

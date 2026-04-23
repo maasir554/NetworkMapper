@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import DatasetInfo from "@/components/DatasetInfo"
 import HeatmapScene from "@/components/HeatmapScene"
+import SignalInsights from "@/components/SignalInsights"
 import TopBar from "@/components/TopBar"
 import UploadPanel from "@/components/UploadPanel"
 import FloorCanvas from "@/components/floor/FloorCanvas"
@@ -95,9 +96,9 @@ export default function Home() {
           )}
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-hidden bg-[radial-gradient(circle_at_top,#13314f_0%,#09131f_38%,#050a12_100%)] p-4 md:p-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-hidden bg-slate-50 p-4 md:p-6">
           {workspaceView !== "planner" && (
-            <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white/80">
+            <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               {workspaceView === "network"
                 ? "Single-room network view with Wi-Fi router audit and optional LTE/5G overlays."
                 : "Side-by-side split comparison for Dataset A and Dataset B using the same heatmap tools."}
@@ -105,24 +106,29 @@ export default function Home() {
           )}
 
           {workspaceView === "network" && (
-            <Card className="min-h-0 flex-1 overflow-hidden border-white/10 bg-black/25">
-              <HeatmapScene initialSignal="wifi" dataset={datasetA} filename={filenameA} />
-            </Card>
+            <div className="min-h-0 flex-1 flex gap-4">
+              <Card className="flex-1 min-h-0 overflow-hidden border-border bg-white">
+                <HeatmapScene initialSignal="wifi" dataset={datasetA} filename={filenameA} hideInsights />
+              </Card>
+              <Card className="w-[340px] shrink-0 overflow-hidden border-border bg-card p-4">
+                <SignalInsights dataset={datasetA} signal="wifi" routerMarkers={[]} />
+              </Card>
+            </div>
           )}
 
           {workspaceView === "compare" && (
             <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-2">
-              <Card className="min-h-[320px] overflow-hidden border-white/10 bg-black/25">
+              <Card className="min-h-[320px] overflow-hidden border-border bg-white">
                 <HeatmapScene initialSignal="wifi" dataset={datasetA} filename={filenameA} />
               </Card>
-              <Card className="min-h-[320px] overflow-hidden border-white/10 bg-black/25">
+              <Card className="min-h-[320px] overflow-hidden border-border bg-white">
                 <HeatmapScene initialSignal="wifi" dataset={datasetB} filename={filenameB} />
               </Card>
             </div>
           )}
 
           {workspaceView === "planner" && (
-            <Card className="min-h-0 flex flex-1 overflow-hidden border-white/10 bg-[#07111d]">
+            <Card className="min-h-0 flex flex-1 overflow-hidden border-border bg-white">
               <div className="flex h-full w-full flex-col">
                 <FloorToolbar />
                 <div className="flex min-h-0 flex-1 overflow-hidden">

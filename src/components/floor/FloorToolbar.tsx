@@ -170,12 +170,12 @@ export default function FloorToolbar() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-neutral-800 bg-[#0b1624] p-3">
+    <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card p-3">
       <span className="font-semibold">Floor:</span>
       <select
         value={currentFloorId || ""}
         onChange={(e) => setCurrentFloor(e.target.value)}
-        className="rounded bg-neutral-900 p-1"
+        className="rounded bg-background border border-border p-1 text-foreground"
       >
         {floors.map((floor) => (
           <option key={floor.id} value={floor.id}>
@@ -257,7 +257,7 @@ export default function FloorToolbar() {
       <select
         value={signal}
         onChange={(e) => setSignal(e.target.value as SignalType)}
-        className="rounded bg-neutral-900 p-1"
+        className="rounded bg-background border border-border p-1 text-foreground"
       >
         <option value="wifi">WiFi</option>
         <option value="lte">LTE</option>
@@ -268,7 +268,7 @@ export default function FloorToolbar() {
       <select
         value={snapUnit}
         onChange={(e) => setSnapUnit(e.target.value as "feet" | "meters")}
-        className="rounded bg-neutral-900 p-1"
+        className="rounded bg-background border border-border p-1 text-foreground"
       >
         <option value="feet">Feet</option>
         <option value="meters">Meters</option>
